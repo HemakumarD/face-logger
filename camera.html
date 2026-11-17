@@ -50,17 +50,18 @@ select option{background:#1a1a2e}
 #hud-status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:.8rem}
 #status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-/* FEED — compact corner toasts */
-#feed{position:absolute;bottom:16px;right:16px;display:flex;flex-direction:column;gap:5px;align-items:flex-end;pointer-events:none;max-width:220px}
-.feed-item{display:flex;align-items:center;gap:7px;padding:5px 9px;border-radius:8px;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);border-left:3px solid;animation:slideIn .25s ease;transition:opacity .4s ease}
-.feed-item.known{border-color:var(--green)}
-.feed-item.unknown{border-color:var(--yellow)}
+/* FEED — tiny pill toasts */
+#feed{position:absolute;bottom:14px;right:12px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;pointer-events:none}
+.feed-item{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:20px;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);border:1px solid;animation:slideIn .2s ease;transition:opacity .35s ease;white-space:nowrap}
+.feed-item.known{border-color:rgba(0,255,157,.4)}
+.feed-item.unknown{border-color:rgba(255,204,0,.4)}
 .feed-item.fade-out{opacity:0}
-.feed-thumb{width:24px;height:24px;border-radius:4px;object-fit:cover;background:#1a1a2e;flex-shrink:0}
-.feed-name{font-size:.72rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
-.feed-meta{font-size:.62rem;color:var(--muted)}
-.feed-time{font-size:.6rem;color:var(--muted);margin-left:auto;padding-left:4px;white-space:nowrap}
-@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+.feed-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.feed-item.known .feed-dot{background:var(--green)}
+.feed-item.unknown .feed-dot{background:var(--yellow)}
+.feed-name{font-size:.68rem;font-weight:600;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+.feed-time{font-size:.6rem;color:var(--muted)}
+@keyframes slideIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
 /* COUNT BADGE */
 #count-badge{position:absolute;top:60px;right:16px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:12px;padding:10px 14px;text-align:center;pointer-events:none}
 #count-num{font-size:1.6rem;font-weight:700;color:var(--accent)}
@@ -224,8 +225,8 @@ async function startApp() {
   document.getElementById('loader').style.display      = 'none';
   document.getElementById('camera-view').style.display = 'block';
 
-  // Lock screen to landscape (CCTV mount position)
-  try { await screen.orientation.lock('landscape'); } catch (e) { /* not all browsers support this */ }
+  // Show startup diagnostic toast for 5 seconds
+  showStartupStatus();
 
   startContinuousRecording();   // ← always-on video recording
   keepAwake();
@@ -234,6 +235,21 @@ async function startApp() {
   setInterval(syncQueue, SYNC_MS);
   syncQueue();
   monitorNetwork();
+}
+
+function showStartupStatus() {
+  const toast = document.getElementById('upload-toast');
+  if (!toast) return;
+  const hasRec = !!(window.MediaRecorder && cameraStream);
+  const hasFaces = !!faceMatcher;
+  const parts = [
+    '✅ Camera OK',
+    hasRec ? '🔴 Recording started' : '⚠️ Recording unavailable',
+    hasFaces ? '✅ Faces loaded' : '⚠️ No faces registered yet'
+  ];
+  toast.textContent = parts.join('  ·  ');
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 6000);
 }
 
 // ── MODELS ──────────────────────────────────────────────────────
@@ -382,9 +398,13 @@ function drawOverlay(dets, vw, vh) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   dets.forEach(det => {
-    if (!faceMatcher) return;
-    const best    = faceMatcher.findBestMatch(det.descriptor);
-    const known   = best.label !== 'unknown';
+    // Always draw box — even if no faces registered yet (shows detection is working)
+    let known = false, label = 'Unknown';
+    if (faceMatcher) {
+      const best = faceMatcher.findBestMatch(det.descriptor);
+      if (best.label !== 'unknown') { known = true; label = best.label; }
+    }
+
     const { x, y, width, height } = det.detection.box;
     const sx = x * scaleX, sy = y * scaleY, sw = width * scaleX, sh = height * scaleY;
 
@@ -405,7 +425,6 @@ function drawOverlay(dets, vw, vh) {
     });
 
     // Label
-    const label = known ? best.label : 'Unknown';
     ctx.fillStyle = known ? '#00ff9d' : '#ffcc00';
     ctx.font = 'bold 13px system-ui';
     ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 4;
@@ -450,10 +469,7 @@ function addFeed(entry) {
   div.className = 'feed-item ' + (entry.isKnown ? 'known' : 'unknown');
   const t = new Date(entry.timestamp);
   const timeStr = t.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-  div.innerHTML = `
-    <img class="feed-thumb" src="${entry.thumb || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}" alt="">
-    <div class="feed-name">${escHtml(entry.name)}</div>
-    <div class="feed-time">${timeStr}</div>`;
+  div.innerHTML = `<span class="feed-dot"></span><span class="feed-name">${escHtml(entry.name)}</span><span class="feed-time">${timeStr}</span>`;
   list.insertBefore(div, list.firstChild);
 
   // Keep at most 3 visible at once
