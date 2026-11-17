@@ -225,6 +225,11 @@ async function startApp() {
   document.getElementById('loader').style.display      = 'none';
   document.getElementById('camera-view').style.display = 'block';
 
+  // Lock to landscape (works when installed as PWA / fullscreen)
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape-primary').catch(() => {});
+  }
+
   // Show startup diagnostic toast for 5 seconds
   showStartupStatus();
 
