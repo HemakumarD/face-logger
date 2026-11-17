@@ -94,7 +94,7 @@ select option{background:#1a1a2e}
     <select id="s-loc">
       <option value="">Select location…</option>
       <option value="Lift">Lift</option>
-<option value="Staircase">Staircase</option>
+      <option value="Staircase">Staircase</option>
     </select>
     <div class="note">🔒 These credentials are saved only on this device. They are never sent anywhere except to your own Google Apps Script.</div>
     <button class="btn" onclick="saveSetup()">💾 Save & Start Camera</button>
@@ -139,7 +139,17 @@ select option{background:#1a1a2e}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-<script src="js/config.js"></script>
+<script>
+// ── INLINE CONFIG (no external config.js needed) ────────────────
+window.FL_CONFIG = {
+  detectIntervalMs: 2500,
+  cooldownMs:       30000,
+  matchThreshold:   0.50,
+  thumbSize:        64,
+  snapshotWidth:    640,
+  locations:        ['Lift','Staircase']
+};
+</script>
 <script>
 'use strict';
 
@@ -165,12 +175,7 @@ const cooldowns = new Map();
 
 // ── SETUP ───────────────────────────────────────────────────────
 function initSetup() {
-  const loc = document.getElementById('s-loc');
-  (CFG.locations || ['Lift','Staircase']).forEach(l => {
-    const o = document.createElement('option');
-    o.value = l; o.textContent = l; loc.appendChild(o);
-  });
-
+  // Location options are already in the HTML — no need to add them here.
   const saved = safeJSON(localStorage.getItem('fl_cam_config'));
   if (saved?.url) document.getElementById('s-url').value   = saved.url;
   if (saved?.tok) document.getElementById('s-token').value = saved.tok;
