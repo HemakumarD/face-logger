@@ -28,10 +28,10 @@ window.FL_CONFIG = {
     {
       name:   'Alpha',
       label:  'α Alpha',
-      url:    'YOUR_ALPHA_APPS_SCRIPT_URL_HERE',
-      token:  'YOUR_ALPHA_API_SECRET_HERE',
-      email:  'alpha.user@gmail.com',       // Google account for this slot
-      active: false                          // set true after deploying
+      url:    'https://script.google.com/macros/s/AKfycbzbRS30ThWiJk3MIF6m5q3K1MQ70VUujnL0jQqgm-lzN2zRxIT8UKLlIH0NAaPt1jyz/exec',
+      token:  '09caf87d-7341-400e-8332-d90e22097dc6',
+      email:  'd.hemakumarr@gmail.com',
+      active: true                           // ✓ deployed
     },
     {
       name:   'Beta',
