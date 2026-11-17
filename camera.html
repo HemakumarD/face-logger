@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0f">
+<meta name="screen-orientation" content="landscape">
 <title>Face Logger – Camera</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon.svg">
@@ -19,6 +20,10 @@
   --text:#e0e0f0;--muted:#888;--radius:16px;--font:'Segoe UI',system-ui,sans-serif;
 }
 body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow:visible;user-select:none}
+/* Force landscape on phones */
+@media screen and (orientation:portrait) and (max-width:768px){
+  body{transform:rotate(90deg);transform-origin:center center;width:100vh;height:100vw;position:fixed;top:calc((100vh - 100vw)/2);left:calc((100vw - 100vh)/2);overflow:hidden}
+}
 /* SETUP SCREEN */
 #setup{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
 .setup-card{background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.3);border-radius:24px;padding:36px;max-width:420px;width:100%;backdrop-filter:blur(20px)}
@@ -45,18 +50,17 @@ select option{background:#1a1a2e}
 #hud-status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:.8rem}
 #status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-/* FEED */
-#feed{position:absolute;bottom:0;left:0;right:0;padding:16px;background:linear-gradient(to top,rgba(0,0,0,.8) 0%,transparent 100%)}
-#feed-title{font-size:.7rem;text-transform:uppercase;color:var(--muted);margin-bottom:8px;letter-spacing:.08em}
-#feed-list{display:flex;flex-direction:column;gap:6px}
-.feed-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);border-left:3px solid;animation:slideIn .3s ease}
+/* FEED — compact corner toasts */
+#feed{position:absolute;bottom:16px;right:16px;display:flex;flex-direction:column;gap:5px;align-items:flex-end;pointer-events:none;max-width:220px}
+.feed-item{display:flex;align-items:center;gap:7px;padding:5px 9px;border-radius:8px;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);border-left:3px solid;animation:slideIn .25s ease;transition:opacity .4s ease}
 .feed-item.known{border-color:var(--green)}
 .feed-item.unknown{border-color:var(--yellow)}
-.feed-thumb{width:36px;height:36px;border-radius:6px;object-fit:cover;background:#1a1a2e}
-.feed-name{font-size:.85rem;font-weight:600}
-.feed-meta{font-size:.7rem;color:var(--muted)}
-.feed-time{margin-left:auto;font-size:.7rem;color:var(--muted)}
-@keyframes slideIn{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+.feed-item.fade-out{opacity:0}
+.feed-thumb{width:24px;height:24px;border-radius:4px;object-fit:cover;background:#1a1a2e;flex-shrink:0}
+.feed-name{font-size:.72rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
+.feed-meta{font-size:.62rem;color:var(--muted)}
+.feed-time{font-size:.6rem;color:var(--muted);margin-left:auto;padding-left:4px;white-space:nowrap}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
 /* COUNT BADGE */
 #count-badge{position:absolute;top:60px;right:16px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:12px;padding:10px 14px;text-align:center;pointer-events:none}
 #count-num{font-size:1.6rem;font-weight:700;color:var(--accent)}
@@ -135,11 +139,11 @@ select option{background:#1a1a2e}
   <div id="queue-badge" id="queue-b">⏳ <span id="queue-count">0</span> queued</div>
 
   <div id="feed">
-    <div id="feed-title">Recent Detections</div>
     <div id="feed-list"></div>
   </div>
 
   <button id="install-btn" onclick="installPWA()">⬇ Install App</button>
+  <div id="upload-toast" style="display:none;position:absolute;bottom:220px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border:1px solid rgba(0,212,255,.4);border-radius:8px;padding:6px 14px;font-size:.75rem;color:var(--cyan);white-space:nowrap;pointer-events:none"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -178,7 +182,7 @@ let deferredInstall = null;
 let cameraStream    = null;   // kept for MediaRecorder
 let mediaRecorder   = null;
 let videoChunks     = [];
-const CLIP_DURATION = 2 * 60 * 1000; // 2-minute clips
+const CLIP_DURATION = 1 * 60 * 1000; // 1-minute clips (keeps each file ~6 MB, safe for Drive upload)
 
 // cooldown map: name → timestamp
 const cooldowns = new Map();
@@ -219,6 +223,9 @@ async function startApp() {
 
   document.getElementById('loader').style.display      = 'none';
   document.getElementById('camera-view').style.display = 'block';
+
+  // Lock screen to landscape (CCTV mount position)
+  try { await screen.orientation.lock('landscape'); } catch (e) { /* not all browsers support this */ }
 
   startContinuousRecording();   // ← always-on video recording
   keepAwake();
@@ -442,16 +449,21 @@ function addFeed(entry) {
   const div  = document.createElement('div');
   div.className = 'feed-item ' + (entry.isKnown ? 'known' : 'unknown');
   const t = new Date(entry.timestamp);
-  const timeStr = t.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const timeStr = t.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
   div.innerHTML = `
     <img class="feed-thumb" src="${entry.thumb || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}" alt="">
-    <div>
-      <div class="feed-name">${escHtml(entry.name)}</div>
-      <div class="feed-meta">${escHtml(entry.camera)} · ${entry.isKnown ? '✓ Known' : '? Unknown'}</div>
-    </div>
+    <div class="feed-name">${escHtml(entry.name)}</div>
     <div class="feed-time">${timeStr}</div>`;
   list.insertBefore(div, list.firstChild);
-  while (list.children.length > 5) list.removeChild(list.lastChild);
+
+  // Keep at most 3 visible at once
+  while (list.children.length > 3) list.removeChild(list.lastChild);
+
+  // Auto-dismiss after 4 seconds
+  setTimeout(() => {
+    div.classList.add('fade-out');
+    setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, 450);
+  }, 4000);
 }
 
 // ── INDEXEDDB QUEUE ─────────────────────────────────────────────
@@ -586,8 +598,8 @@ function startContinuousRecording() {
 
   try {
     mediaRecorder = mimeType
-      ? new MediaRecorder(cameraStream, { mimeType, videoBitsPerSecond: 2000000 })
-      : new MediaRecorder(cameraStream, { videoBitsPerSecond: 2000000 }); // 2 Mbps HD
+      ? new MediaRecorder(cameraStream, { mimeType, videoBitsPerSecond: 800000 })
+      : new MediaRecorder(cameraStream, { videoBitsPerSecond: 800000 }); // 800 kbps HD
   } catch (e) {
     console.warn('Could not create MediaRecorder:', e);
     return;
@@ -619,7 +631,11 @@ function startContinuousRecording() {
 
 async function uploadClip(blob, mimeType) {
   if (!blob || blob.size < 1024) return; // skip empty/tiny blobs
+  const toast = document.getElementById('upload-toast');
   try {
+    const sizeKB = Math.round(blob.size / 1024);
+    if (toast) { toast.textContent = '📤 Uploading clip… ' + sizeKB + ' KB'; toast.style.display = 'block'; }
+
     const base64   = await blobToBase64(blob);
     const ext      = (mimeType || '').includes('mp4') ? 'mp4' : 'webm';
     const now      = new Date().toISOString().replace(/[:.]/g, '-');
@@ -639,12 +655,15 @@ async function uploadClip(blob, mimeType) {
     });
     const result = await resp.json();
     if (result.success) {
-      console.log('Clip saved:', filename, '(' + Math.round(blob.size / 1024) + ' KB)');
+      console.log('Clip saved:', filename, '(' + sizeKB + ' KB)');
+      if (toast) { toast.textContent = '✅ Saved: ' + filename.substring(0, 30) + '…'; setTimeout(() => { toast.style.display = 'none'; }, 3000); }
     } else {
       console.warn('Clip upload failed:', result.error);
+      if (toast) { toast.textContent = '❌ Upload failed: ' + (result.error || 'unknown'); setTimeout(() => { toast.style.display = 'none'; }, 5000); }
     }
   } catch (e) {
     console.warn('Video upload error:', e);
+    if (toast) { toast.textContent = '❌ Network error — will retry next clip'; setTimeout(() => { toast.style.display = 'none'; }, 5000); }
   }
 }
 
