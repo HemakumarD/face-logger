@@ -62,6 +62,7 @@ function doPost(e) {
       case 'exportAll':     return jsonResp(exportAll(body.token));
       case 'receiveBackup': return jsonResp(receiveBackup(body.token, body.payload));
       case 'clearActive':   return jsonResp(clearActive(body.token));
+      case 'saveVideo':     return jsonResp(saveVideoClip(body.token, body));
       default:              return jsonResp({ error: 'Unknown action: ' + body.action }, 400);
     }
   } catch (err) {
@@ -504,6 +505,35 @@ function clearActive(token) {
   // Reset rotation clock
   PropertiesService.getScriptProperties().setProperty('ROTATION_START', new Date().toISOString());
   return { success: true, clearedAt: new Date().toISOString(), slot: getSlotName() };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VIDEO CLIP SAVING
+// ═══════════════════════════════════════════════════════════════
+function saveVideoClip(token, body) {
+  auth(token);
+  const { camera, filename, videoBase64, mimeType } = body;
+  if (!videoBase64 || !filename) return { error: 'filename and videoBase64 required' };
+
+  try {
+    const root    = getRootFolder();
+    const vidRoot = getSub(root, 'Videos');
+    const dateStr = Utilities.formatDate(new Date(), CFG.TIMEZONE, 'yyyy-MM-dd');
+    const dateDir = getSub(vidRoot, dateStr);
+    const camDir  = getSub(dateDir, sanitizeString(camera || 'Unknown', 20));
+
+    const bytes  = Utilities.base64Decode(videoBase64.replace(/^data:[^;]+;base64,/, ''));
+    const mime   = (mimeType || 'video/webm').split(';')[0];
+    const safe   = sanitizeString(filename, 100);
+    const blob   = Utilities.newBlob(bytes, mime, safe);
+    const file   = camDir.createFile(blob);
+
+    Logger.log('Video saved: ' + safe + ' (' + bytes.length + ' bytes) → ' + file.getId());
+    return { success: true, fileId: file.getId(), filename: safe, bytes: bytes.length };
+  } catch (err) {
+    Logger.log('saveVideoClip error: ' + err.message);
+    return { error: err.message };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
