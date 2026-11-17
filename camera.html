@@ -117,6 +117,10 @@ select option{background:#1a1a2e}
   <div id="hud">
     <div id="hud-cam">LIFT</div>
     <div id="hud-slot">α Alpha</div>
+    <div id="rec-indicator" style="display:none;align-items:center;gap:5px;background:rgba(255,68,102,.25);border:1px solid rgba(255,68,102,.5);border-radius:6px;padding:3px 9px">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--red);animation:pulse 1s infinite"></div>
+      <span style="font-size:.72rem;font-weight:700;color:var(--red);letter-spacing:.05em">REC</span>
+    </div>
     <div id="hud-status">
       <div id="status-dot"></div>
       <span id="status-text">Scanning</span>
@@ -170,6 +174,12 @@ let todayCount  = 0;
 let idb         = null;
 let deferredInstall = null;
 
+// ── VIDEO RECORDING ─────────────────────────────────────────────
+let cameraStream    = null;   // kept for MediaRecorder
+let mediaRecorder   = null;
+let videoChunks     = [];
+const CLIP_DURATION = 2 * 60 * 1000; // 2-minute clips
+
 // cooldown map: name → timestamp
 const cooldowns = new Map();
 
@@ -210,6 +220,7 @@ async function startApp() {
   document.getElementById('loader').style.display      = 'none';
   document.getElementById('camera-view').style.display = 'block';
 
+  startContinuousRecording();   // ← always-on video recording
   keepAwake();
   loadTodayCount();
   setInterval(runDetection, DETECT_MS);
@@ -240,9 +251,10 @@ async function initCamera() {
   const video = document.getElementById('video');
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: false
     });
+    cameraStream = stream;        // ← store for MediaRecorder
     video.srcObject = stream;
     await new Promise(r => video.onloadedmetadata = r);
     resizeOverlay();
@@ -554,6 +566,100 @@ async function loadTodayCount() {
       document.getElementById('count-num').textContent = todayCount;
     }
   } catch (e) {}
+}
+
+// ── CONTINUOUS VIDEO RECORDING ──────────────────────────────────
+function startContinuousRecording() {
+  if (!cameraStream || !window.MediaRecorder) {
+    console.warn('MediaRecorder not available — video recording disabled.');
+    return;
+  }
+
+  // Pick best supported codec
+  const mimeTypes = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/mp4'
+  ];
+  const mimeType = mimeTypes.find(mt => MediaRecorder.isTypeSupported(mt)) || '';
+
+  try {
+    mediaRecorder = mimeType
+      ? new MediaRecorder(cameraStream, { mimeType, videoBitsPerSecond: 2000000 })
+      : new MediaRecorder(cameraStream, { videoBitsPerSecond: 2000000 }); // 2 Mbps HD
+  } catch (e) {
+    console.warn('Could not create MediaRecorder:', e);
+    return;
+  }
+
+  videoChunks = [];
+
+  mediaRecorder.ondataavailable = e => {
+    if (e.data && e.data.size > 0) videoChunks.push(e.data);
+  };
+
+  mediaRecorder.onstop = () => {
+    const blob = new Blob(videoChunks, { type: mediaRecorder.mimeType || 'video/webm' });
+    videoChunks = [];
+    uploadClip(blob, mediaRecorder.mimeType || 'video/webm');
+    // Restart immediately for next 2-minute chunk
+    setTimeout(startContinuousRecording, 500);
+  };
+
+  mediaRecorder.start();
+  setRecIndicator(true);
+
+  // Stop after CLIP_DURATION to trigger onstop → save → restart
+  setTimeout(() => {
+    try { if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop(); }
+    catch (e) { console.warn('stop error:', e); }
+  }, CLIP_DURATION);
+}
+
+async function uploadClip(blob, mimeType) {
+  if (!blob || blob.size < 1024) return; // skip empty/tiny blobs
+  try {
+    const base64   = await blobToBase64(blob);
+    const ext      = (mimeType || '').includes('mp4') ? 'mp4' : 'webm';
+    const now      = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${cameraLoc}_${now}.${ext}`;
+
+    const resp = await fetch(scriptUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        action:      'saveVideo',
+        token:       apiToken,
+        camera:      cameraLoc,
+        filename,
+        videoBase64: base64,
+        mimeType:    mimeType || 'video/webm'
+      })
+    });
+    const result = await resp.json();
+    if (result.success) {
+      console.log('Clip saved:', filename, '(' + Math.round(blob.size / 1024) + ' KB)');
+    } else {
+      console.warn('Clip upload failed:', result.error);
+    }
+  } catch (e) {
+    console.warn('Video upload error:', e);
+  }
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.onerror   = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function setRecIndicator(on) {
+  const el = document.getElementById('rec-indicator');
+  if (el) el.style.display = on ? 'flex' : 'none';
 }
 
 // ── UTILS ───────────────────────────────────────────────────────
