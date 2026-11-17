@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+  content="default-src 'self' https:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://script.google.com;">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a0f">
+<title>Face Logger – Dashboard</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon.svg">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--glass:rgba(255,255,255,0.05);--border:rgba(255,255,255,0.1);
+  --accent:#6c63ff;--cyan:#00d4ff;--green:#00ff9d;--yellow:#ffcc00;--red:#ff4466;
+  --text:#e0e0f0;--muted:#888;--radius:16px;--font:'Segoe UI',system-ui,sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;padding-bottom:60px}
+header{background:linear-gradient(135deg,rgba(108,99,255,.15),rgba(0,212,255,.08));
+  border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;backdrop-filter:blur(12px)}
+.logo-sm{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--cyan));
+  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+header h1{font-size:1.1rem;font-weight:700}
+header h1 span{color:var(--accent)}
+#header-range{margin-left:auto;font-size:.75rem;color:var(--muted)}
+.nav{display:flex;border-bottom:1px solid var(--border);overflow-x:auto;background:rgba(0,0,0,.3)}
+.nav-tab{padding:11px 16px;background:none;border:none;color:var(--muted);font-size:.82rem;font-weight:600;
+  cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:.2s}
+.nav-tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.nav a{padding:12px 18px;text-decoration:none;color:var(--muted);font-size:.82rem;font-weight:600;
+  white-space:nowrap;border-bottom:2px solid transparent;transition:.2s}
+.nav a:hover{color:var(--text)}
+main{max-width:1100px;margin:0 auto;padding:20px 16px}
+/* TAB PANELS */
+.panel{display:none}.panel.active{display:block}
+/* STAT CARDS */
+.stat-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center}
+.stat-num{font-size:2rem;font-weight:700;line-height:1}
+.stat-label{font-size:.7rem;color:var(--muted);margin-top:4px;letter-spacing:.05em;text-transform:uppercase}
+.c-purple{color:var(--accent)}.c-cyan{color:var(--cyan)}.c-green{color:var(--green)}.c-yellow{color:var(--yellow)}
+/* LOG TABLE */
+.table-wrap{background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
+.filter-row{display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+input,select{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;
+  color:var(--text);font-size:.85rem;padding:8px 10px;outline:none;transition:.2s}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:#1a1a2e}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{padding:10px 14px;text-align:left;font-weight:600;color:var(--muted);font-size:.72rem;
+  letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(108,99,255,.05)}
+.thumb-cell img{width:36px;height:36px;border-radius:6px;object-fit:cover;background:#1a1a2e}
+.badge{padding:3px 8px;border-radius:5px;font-size:.7rem;font-weight:700}
+.badge-known{background:rgba(0,255,157,.15);color:var(--green)}
+.badge-unknown{background:rgba(255,204,0,.12);color:var(--yellow)}
+.pagination{display:flex;gap:8px;padding:12px 16px;align-items:center;border-top:1px solid var(--border)}
+.page-btn{background:var(--glass);border:1px solid var(--border);border-radius:8px;color:var(--text);
+  padding:6px 12px;cursor:pointer;font-size:.8rem;transition:.2s}
+.page-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.page-btn:disabled{opacity:.4;cursor:default}
+#page-info{font-size:.8rem;color:var(--muted);margin:0 auto}
+/* ROTATION MANAGER */
+.section-title{font-size:1rem;font-weight:700;margin-bottom:14px}
+.slot-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:24px}
+.slot-card{background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative}
+.slot-card.active-slot{border-color:rgba(108,99,255,.5);background:rgba(108,99,255,.08)}
+.slot-card.unconfigured{opacity:.5}
+.slot-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.slot-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.slot-alpha{background:linear-gradient(135deg,var(--accent),var(--cyan))}
+.slot-beta{background:linear-gradient(135deg,#ff6b6b,#ff9f43)}
+.slot-gamma{background:linear-gradient(135deg,#00ff9d,#00b4d8)}
+.slot-delta{background:linear-gradient(135deg,#f7971e,#ffd200)}
+.slot-epsilon{background:linear-gradient(135deg,#c471ed,#f64f59)}
+.slot-name{font-size:.85rem;font-weight:700}
+.slot-label{font-size:.7rem;color:var(--muted)}
+.slot-stat{font-size:.75rem;color:var(--muted);display:flex;gap:16px;margin-top:8px}
+.slot-stat span{color:var(--text);font-weight:600}
+.days-bar{height:4px;background:rgba(255,255,255,.1);border-radius:2px;margin-top:10px;overflow:hidden}
+.days-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--yellow),var(--red));border-radius:2px;transition:width .5s}
+.slot-status-badge{position:absolute;top:12px;right:12px;padding:3px 8px;border-radius:5px;font-size:.65rem;font-weight:700}
+.sb-live{background:rgba(0,255,157,.15);color:var(--green)}
+.sb-backup{background:rgba(0,212,255,.12);color:var(--cyan)}
+.sb-idle{background:rgba(255,255,255,.07);color:var(--muted)}
+/* ROTATION CONTROLS */
+.rotation-ctrl{background:rgba(108,99,255,.08);border:1px solid rgba(108,99,255,.25);border-radius:var(--radius);padding:20px;margin-bottom:24px}
+.rotation-ctrl h3{font-size:.9rem;margin-bottom:12px;color:var(--accent)}
+.rotation-info{font-size:.82rem;color:var(--muted);margin-bottom:14px;line-height:1.6}
+.rotation-info strong{color:var(--text)}
+.ctrl-row{display:flex;gap:10px;flex-wrap:wrap}
+.btn{padding:9px 16px;border:none;border-radius:9px;font-size:.82rem;font-weight:700;cursor:pointer;transition:.2s}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--cyan));color:#fff}
+.btn-danger{background:rgba(255,68,102,.15);color:var(--red);border:1px solid rgba(255,68,102,.3)}
+.btn-ghost{background:var(--glass);color:var(--text);border:1px solid var(--border)}
+.btn:active{opacity:.8;transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:default}
+/* PROGRESS MODAL */
+#rotate-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+.rotate-card{background:#111118;border:1px solid rgba(108,99,255,.4);border-radius:20px;padding:28px;max-width:420px;width:100%}
+.rotate-card h3{font-size:1rem;margin-bottom:18px;color:var(--accent)}
+.step-list{list-style:none;display:flex;flex-direction:column;gap:10px}
+.step-item{display:flex;align-items:center;gap:10px;font-size:.85rem;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.03)}
+.step-icon{font-size:1.1rem;width:24px;text-align:center;flex-shrink:0}
+.step-name{flex:1}
+.step-status{font-size:.75rem;color:var(--muted)}
+.step-status.ok{color:var(--green)}.step-status.running{color:var(--cyan)}.step-status.error{color:var(--red)}
+#rotate-close{margin-top:16px;width:100%}
+/* SETTINGS */
+.settings-block{background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.settings-block h3{font-size:.9rem;margin-bottom:14px;color:var(--cyan)}
+.set-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,.04);font-size:.85rem}
+.set-row:last-child{border-bottom:none}
+.set-label{color:var(--muted);font-size:.8rem}
+.set-val{color:var(--text);font-weight:600}
+/* SEARCH */
+.search-block{background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+.search-block h3{font-size:.88rem;margin-bottom:12px;color:var(--cyan)}
+.search-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 18px;border-radius:12px;font-size:.85rem;
+  font-weight:600;z-index:999;animation:fadeUp .3s ease;max-width:300px;line-height:1.4;border:1px solid}
+.toast.success{background:rgba(0,255,157,.1);border-color:rgba(0,255,157,.4);color:var(--green)}
+.toast.error{background:rgba(255,68,102,.1);border-color:rgba(255,68,102,.4);color:var(--red)}
+.toast.info{background:rgba(108,99,255,.1);border-color:rgba(108,99,255,.4);color:var(--accent)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.empty{text-align:center;padding:40px;color:var(--muted)}.empty-icon{font-size:36px;margin-bottom:10px}
+.chart-bar-wrap{display:flex;align-items:flex-end;gap:4px;height:60px;margin-top:8px}
+.chart-bar{flex:1;background:var(--accent);border-radius:3px 3px 0 0;min-height:2px;transition:height .5s;position:relative}
+.chart-bar:hover::after{content:attr(data-val);position:absolute;bottom:calc(100% + 4px);left:50%;
+  transform:translateX(-50%);background:#222;padding:3px 6px;border-radius:4px;font-size:.7rem;white-space:nowrap}
+.chart-labels{display:flex;gap:4px;margin-top:4px}
+.chart-label{flex:1;text-align:center;font-size:.55rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-sm">📊</div>
+  <h1>Face <span>Logger</span></h1>
+  <div id="header-range">Loading…</div>
+</header>
+
+<nav class="nav">
+  <a href="camera.html">📷 Camera</a>
+  <a href="admin.html">👤 Faces</a>
+  <button class="nav-tab active" onclick="switchTab('today')">🕐 Today</button>
+  <button class="nav-tab" onclick="switchTab('search')">🔍 Search</button>
+  <button class="nav-tab" onclick="switchTab('rotation')">🔄 Rotation</button>
+  <button class="nav-tab" onclick="switchTab('settings')">⚙️ Settings</button>
+</nav>
+
+<main>
+
+<!-- ═══ TODAY TAB ═══ -->
+<div id="tab-today" class="panel active">
+  <div class="stat-row" id="stat-row">
+    <div class="stat-card"><div class="stat-num c-purple" id="s-total">–</div><div class="stat-label">Today Total</div></div>
+    <div class="stat-card"><div class="stat-num c-green"  id="s-known">–</div><div class="stat-label">Known</div></div>
+    <div class="stat-card"><div class="stat-num c-yellow" id="s-unknown">–</div><div class="stat-label">Unknown</div></div>
+    <div class="stat-card"><div class="stat-num c-cyan"   id="s-span">–</div><div class="stat-label">Days Logged</div></div>
+  </div>
+  <!-- Activity chart -->
+  <div class="settings-block" style="margin-bottom:20px">
+    <h3>Hourly Activity (Today)</h3>
+    <div class="chart-bar-wrap" id="chart-bars"></div>
+    <div class="chart-labels" id="chart-labels"></div>
+  </div>
+  <!-- Log table -->
+  <div class="table-wrap">
+    <div class="filter-row">
+      <input id="f-name" type="text" placeholder="Filter by name…" oninput="applyFilter()" style="width:160px">
+      <select id="f-cam" onchange="applyFilter()">
+        <option value="">All cameras</option>
+      </select>
+      <select id="f-type" onchange="applyFilter()">
+        <option value="">All types</option>
+        <option value="known">Known</option>
+        <option value="unknown">Unknown</option>
+      </select>
+      <button class="btn btn-ghost" style="padding:7px 12px;font-size:.78rem;margin-left:auto" onclick="loadToday()">🔄 Refresh</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th></th><th>Time</th><th>Camera</th><th>Name</th><th>Type</th><th>Confidence</th>
+        </tr></thead>
+        <tbody id="log-tbody"></tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <button class="page-btn" id="prev-btn" onclick="changePage(-1)" disabled>← Prev</button>
+      <span id="page-info">Page 1</span>
+      <button class="page-btn" id="next-btn" onclick="changePage(1)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SEARCH TAB ═══ -->
+<div id="tab-search" class="panel">
+  <div class="search-block">
+    <h3>Search Across All Slots</h3>
+    <div class="search-row">
+      <input id="q-name" type="text" placeholder="Name (optional)">
+      <input id="q-from" type="date">
+      <input id="q-to"   type="date">
+      <select id="q-cam">
+        <option value="">All cameras</option>
+      </select>
+      <button class="btn btn-primary" onclick="doSearch()">Search</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th></th><th>Date</th><th>Time</th><th>Slot</th><th>Camera</th><th>Name</th><th>Type</th>
+        </tr></thead>
+        <tbody id="search-tbody">
+          <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">Enter search criteria above</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ROTATION TAB ═══ -->
+<div id="tab-rotation" class="panel">
+  <div class="rotation-ctrl">
+    <h3>🔄 75-Day Rotation System</h3>
+    <div class="rotation-info" id="rotation-info">
+      Checking slot status… Each 15-day cycle, data cascades:
+      <strong>Alpha → Beta → Gamma → Delta → Epsilon</strong>.
+      Total window: up to <strong>75 days</strong> across all active slots.
+    </div>
+    <div class="ctrl-row">
+      <button class="btn btn-primary" onclick="checkRotationStatus()">🔍 Check All Slots</button>
+      <button class="btn btn-ghost" id="rotate-now-btn" onclick="confirmRotate()" disabled>🔄 Rotate Now</button>
+      <button class="btn btn-danger" onclick="confirmWipeAlpha()">⚠️ Wipe Alpha</button>
+    </div>
+  </div>
+  <div class="section-title">Slot Status</div>
+  <div class="slot-cards" id="slot-cards"></div>
+</div>
+
+<!-- ═══ SETTINGS TAB ═══ -->
+<div id="tab-settings" class="panel">
+  <div class="settings-block">
+    <h3>🔑 Alpha Slot (Primary Camera)</h3>
+    <div class="set-row">
+      <span class="set-label">Script URL</span>
+      <input id="cfg-alpha-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" style="width:60%;font-size:.8rem">
+    </div>
+    <div class="set-row">
+      <span class="set-label">API Token</span>
+      <input id="cfg-alpha-tok" type="password" placeholder="Paste your Alpha API secret" style="width:60%;font-size:.8rem">
+    </div>
+    <button class="btn btn-primary" onclick="saveSlotConfig('Alpha','cfg-alpha-url','cfg-alpha-tok')" style="margin-top:10px">Save Alpha</button>
+  </div>
+
+  <div id="extra-slot-settings"></div>
+
+  <div class="settings-block">
+    <h3>ℹ️ System Info</h3>
+    <div class="set-row"><span class="set-label">PWA Version</span><span class="set-val">v2.0.0</span></div>
+    <div class="set-row"><span class="set-label">Active Slots</span><span class="set-val" id="cfg-slots-count">–</span></div>
+    <div class="set-row"><span class="set-label">Rotation Window</span><span class="set-val" id="cfg-window">–</span></div>
+    <div class="set-row"><span class="set-label">Match Threshold</span><span class="set-val">${(window.FL_CONFIG?.matchThreshold||0.5).toFixed(2)}</span></div>
+  </div>
+  <div class="settings-block">
+    <h3>🔗 Quick Links</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a href="camera.html" class="btn btn-ghost" style="text-decoration:none;font-size:.8rem">📷 Camera Kiosk</a>
+      <a href="admin.html"  class="btn btn-ghost" style="text-decoration:none;font-size:.8rem">👤 Face Admin</a>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- ROTATION PROGRESS MODAL -->
+<div id="rotate-modal">
+  <div class="rotate-card">
+    <h3>🔄 Rotating Slots…</h3>
+    <ul class="step-list" id="step-list"></ul>
+    <button class="btn btn-ghost" id="rotate-close" onclick="closeRotateModal()" disabled>Close</button>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script>
+'use strict';
+
+const CFG   = window.FL_CONFIG;
+const SLOTS = CFG.slots || [];
+const ACTIVE= CFG.activeSlots || SLOTS.filter(s => s.active !== false);
+
+let currentPage = 1;
+const PAGE_SIZE = 25;
+let allLogs = [], filteredLogs = [];
+let slotStatus = {};
+let rotateSteps = [];
+
+// ── SLOT CONFIG HELPERS ─────────────────────────────────────────
+function getSlotAuth(name) {
+  const key = 'fl_slot_auth_' + name;
+  return safeJSON(localStorage.getItem(key)) || {};
+}
+function getAlphaAuth() {
+  // priority: saved α config, then FL_CONFIG
+  const saved = getSlotAuth('Alpha');
+  const cfgSlot = SLOTS.find(s => s.name === 'Alpha') || {};
+  return { url: saved.url || cfgSlot.url || '', token: saved.token || cfgSlot.token || '' };
+}
+
+// ── BOOT ────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  populateCameraFilters();
+  buildSlotCards('loading');
+  buildSettingsSlots();
+  loadSavedConfigs();
+  loadToday();
+  updateHeaderRange();
+  updateSettingsInfo();
+});
+
+function populateCameraFilters() {
+  const locs = CFG.locations || ['Lift','Staircase'];
+  ['f-cam','q-cam'].forEach(id => {
+    const sel = document.getElementById(id);
+    locs.forEach(l => { const o=document.createElement('option');o.value=l;o.textContent=l;sel.appendChild(o); });
+  });
+}
+
+// ── TABS ────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name==='rotation') checkRotationStatus();
+}
+
+// ── TODAY ────────────────────────────────────────────────────────
+async function loadToday() {
+  const auth  = getAlphaAuth();
+  if (!auth.url || !auth.token) {
+    document.getElementById('log-tbody').innerHTML =
+      '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Configure Alpha slot in Settings first</td></tr>';
+    return;
+  }
+  const today = new Date().toISOString().substring(0,10);
+  try {
+    const res  = await fetch(`${auth.url}?action=getLogs&token=${encodeURIComponent(auth.token)}&limit=500`);
+    const data = await res.json();
+    allLogs = data.logs || [];
+    updateStats();
+    buildHourlyChart();
+    applyFilter();
+  } catch (e) { showToast('Failed to load: '+e.message,'error'); }
+}
+
+function updateStats() {
+  const known   = allLogs.filter(l=>String(l.known||l.Known)!=='false' && String(l.known||l.Known)==='true').length;
+  const unknown = allLogs.length - known;
+  const dates   = new Set(allLogs.map(l=>(l.date||l.Date||'').substring(0,10)));
+  document.getElementById('s-total').textContent   = allLogs.length;
+  document.getElementById('s-known').textContent   = known;
+  document.getElementById('s-unknown').textContent = unknown;
+  document.getElementById('s-span').textContent    = dates.size || '–';
+}
+
+function buildHourlyChart() {
+  const today = new Date().toISOString().substring(0,10);
+  const hours = Array(24).fill(0);
+  allLogs.filter(l=>(l.date||l.Date||'').startsWith(today)).forEach(l => {
+    const t = (l.time||l.Time||'00:00:00');
+    const h = parseInt(t.substring(0,2));
+    if (h>=0 && h<24) hours[h]++;
+  });
+  const max = Math.max(...hours,1);
+  const bars = document.getElementById('chart-bars');
+  const lbls = document.getElementById('chart-labels');
+  bars.innerHTML = ''; lbls.innerHTML = '';
+  hours.forEach((v,i) => {
+    const pct = Math.round(v/max*100);
+    const bar = document.createElement('div');
+    bar.className = 'chart-bar';
+    bar.style.height = pct + '%';
+    bar.setAttribute('data-val', v);
+    bars.appendChild(bar);
+    if (i%6===0) { const lbl=document.createElement('div');lbl.className='chart-label';lbl.textContent=i+'h';lbls.appendChild(lbl); }
+    else { const sp=document.createElement('div');sp.className='chart-label';lbls.appendChild(sp); }
+  });
+}
+
+function applyFilter() {
+  const name  = (document.getElementById('f-name')?.value||'').toLowerCase();
+  const cam   = document.getElementById('f-cam')?.value||'';
+  const type  = document.getElementById('f-type')?.value||'';
+  filteredLogs = allLogs.filter(l => {
+    if (name && !(l.name||l.Name||'').toLowerCase().includes(name)) return false;
+    if (cam  && (l.camera||l.Camera||'')!==cam) return false;
+    if (type==='known' && String(l.known||l.Known)!=='true') return false;
+    if (type==='unknown' && String(l.known||l.Known)==='true') return false;
+    return true;
+  });
+  currentPage = 1;
+  renderPage();
+}
+
+function renderPage() {
+  const tbody = document.getElementById('log-tbody');
+  const start = (currentPage-1)*PAGE_SIZE;
+  const slice = filteredLogs.slice(start, start+PAGE_SIZE);
+  if (!slice.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">No entries</td></tr>';
+    document.getElementById('page-info').textContent = 'No results';
+    document.getElementById('prev-btn').disabled = true;
+    document.getElementById('next-btn').disabled = true;
+    return;
+  }
+  tbody.innerHTML = slice.map(l => {
+    const name    = escHtml(l.name||l.Name||'–');
+    const cam     = escHtml(l.camera||l.Camera||'–');
+    const time    = escHtml(l.time||l.Time||l.timestamp||'–');
+    const known   = String(l.known||l.Known)==='true';
+    const conf    = l.confidence||l.Confidence||'–';
+    const thumb   = l.thumbnail||l.Thumbnail||'';
+    return `<tr>
+      <td class="thumb-cell">${thumb?`<img src="${thumb}" alt="">`:'<span style="font-size:1.2rem">👤</span>'}</td>
+      <td>${escHtml(typeof time==='string'?time.substring(0,8):time)}</td>
+      <td>${cam}</td>
+      <td>${name}</td>
+      <td><span class="badge ${known?'badge-known':'badge-unknown'}">${known?'Known':'Unknown'}</span></td>
+      <td style="color:var(--muted)">${conf}</td>
+    </tr>`;
+  }).join('');
+  const total = Math.ceil(filteredLogs.length/PAGE_SIZE);
+  document.getElementById('page-info').textContent = `Page ${currentPage} / ${total} · ${filteredLogs.length} entries`;
+  document.getElementById('prev-btn').disabled = currentPage<=1;
+  document.getElementById('next-btn').disabled = currentPage>=total;
+}
+
+function changePage(dir) {
+  const total = Math.ceil(filteredLogs.length/PAGE_SIZE);
+  currentPage = Math.max(1, Math.min(total, currentPage+dir));
+  renderPage();
+}
+
+// ── SEARCH ──────────────────────────────────────────────────────
+async function doSearch() {
+  const name  = document.getElementById('q-name').value.trim();
+  const from  = document.getElementById('q-from').value;
+  const to    = document.getElementById('q-to').value;
+  const cam   = document.getElementById('q-cam').value;
+  const tbody = document.getElementById('search-tbody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--cyan)">Searching all slots…</td></tr>';
+
+  let combined = [];
+  for (const slot of ACTIVE) {
+    const auth = getSlotAuth(slot.name);
+    const url  = auth.url || slot.url;
+    const tok  = auth.token || slot.token;
+    if (!url || !tok) continue;
+    try {
+      let q = `${url}?action=getLogs&token=${encodeURIComponent(tok)}&limit=200`;
+      if (name) q += '&name='+encodeURIComponent(name);
+      if (from) q += '&from='+encodeURIComponent(from);
+      if (to)   q += '&to='+encodeURIComponent(to);
+      if (cam)  q += '&camera='+encodeURIComponent(cam);
+      const res  = await fetch(q);
+      const data = await res.json();
+      (data.logs||[]).forEach(l=>{ l._slot = slot.label||slot.name; combined.push(l); });
+    } catch (_) {}
+  }
+
+  if (!combined.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">No results</td></tr>';
+    return;
+  }
+  combined.sort((a,b) => new Date(b.timestamp||b.Timestamp)- new Date(a.timestamp||a.Timestamp));
+  tbody.innerHTML = combined.slice(0,200).map(l => {
+    const known = String(l.known||l.Known)==='true';
+    const thumb = l.thumbnail||l.Thumbnail||'';
+    return `<tr>
+      <td class="thumb-cell">${thumb?`<img src="${thumb}" alt="">`:'<span>👤</span>'}</td>
+      <td>${escHtml((l.date||l.Date||'–'))}</td>
+      <td>${escHtml((l.time||l.Time||'–').substring(0,8))}</td>
+      <td><span style="font-size:.7rem;padding:2px 6px;border-radius:4px;background:rgba(108,99,255,.2);color:var(--accent)">${escHtml(l._slot)}</span></td>
+      <td>${escHtml(l.camera||l.Camera||'–')}</td>
+      <td>${escHtml(l.name||l.Name||'–')}</td>
+      <td><span class="badge ${known?'badge-known':'badge-unknown'}">${known?'Known':'Unknown'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── ROTATION ────────────────────────────────────────────────────
+const SLOT_ICONS = ['🟣','🟠','🟢','🟡','🔴'];
+const SLOT_CLASSES = ['slot-alpha','slot-beta','slot-gamma','slot-delta','slot-epsilon'];
+
+function buildSlotCards(mode) {
+  const grid = document.getElementById('slot-cards');
+  grid.innerHTML = '';
+  ACTIVE.forEach((slot, i) => {
+    const st     = slotStatus[slot.name] || {};
+    const days   = st.daysSinceRotation ?? '–';
+    const pct    = typeof days === 'number' ? Math.min(100, days/15*100) : 0;
+    const isLive = i===0;
+    const card   = document.createElement('div');
+    card.className = 'slot-card' + (isLive ? ' active-slot' : '');
+    card.innerHTML = `
+      <span class="slot-status-badge ${isLive?'sb-live':i<ACTIVE.length?'sb-backup':'sb-idle'}">${isLive?'LIVE':i<ACTIVE.length?'BACKUP':'IDLE'}</span>
+      <div class="slot-header">
+        <div class="slot-icon ${SLOT_CLASSES[i]}">${SLOT_ICONS[i]}</div>
+        <div>
+          <div class="slot-name">${slot.label||slot.name}</div>
+          <div class="slot-label">${slot.email||''}</div>
+        </div>
+      </div>
+      <div class="slot-stat">
+        <div>Logs <span>${mode==='loading'?'…':(st.activeLogCount??'–')}</span></div>
+        <div>Day <span>${days} / 15</span></div>
+      </div>
+      <div class="days-bar"><div class="days-fill" style="width:${pct}%"></div></div>`;
+    grid.appendChild(card);
+  });
+}
+
+async function checkRotationStatus() {
+  buildSlotCards('loading');
+  for (const slot of ACTIVE) {
+    const auth = getSlotAuth(slot.name);
+    const url  = auth.url || slot.url;
+    const tok  = auth.token || slot.token;
+    if (!url || !tok) continue;
+    try {
+      const res  = await fetch(`${url}?action=getSlotStatus&token=${encodeURIComponent(tok)}`);
+      const data = await res.json();
+      slotStatus[slot.name] = data;
+    } catch (_) { slotStatus[slot.name] = { error: true }; }
+  }
+  buildSlotCards('done');
+  updateRotationInfo();
+  document.getElementById('rotate-now-btn').disabled = false;
+}
+
+function updateRotationInfo() {
+  const alpha   = ACTIVE[0];
+  const st      = slotStatus[alpha?.name] || {};
+  const days    = st.daysSinceRotation ?? 0;
+  const remaining = Math.max(0, 15 - days);
+  const totalDays = ACTIVE.length * 15;
+  document.getElementById('rotation-info').innerHTML =
+    `Active slots: <strong>${ACTIVE.length}</strong> · Rolling window: <strong>${totalDays} days</strong><br>
+     Alpha is on day <strong>${days}</strong> of 15 — rotation in <strong>${remaining} day(s)</strong><br>
+     ${days >= 15 ? '<span style="color:var(--yellow)">⚠️ Alpha is due for rotation</span>' : ''}`;
+}
+
+function confirmRotate() {
+  if (!confirm(`Rotate slots now? This will:\n• Export Alpha → Back up to Beta\n• Cascade: Beta→Gamma, Gamma→Delta, etc.\n• Clear Alpha active logs\n\nThis cannot be undone.`)) return;
+  startRotation();
+}
+
+function confirmWipeAlpha() {
+  if (!prompt('Type WIPE to clear Alpha active data:','')?.trim().toUpperCase()==='WIPE') {
+    if (!confirm('Really wipe Alpha active logs?')) return;
+  }
+  wipeAlpha();
+}
+
+async function wipeAlpha() {
+  const slot = ACTIVE[0]; if (!slot) return;
+  const auth = getSlotAuth(slot.name);
+  const url  = auth.url || slot.url;
+  const tok  = auth.token || slot.token;
+  if (!url || !tok) { showToast('Alpha not configured','error'); return; }
+  try {
+    const res  = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'clearActive', token:tok }) });
+    const data = await res.json();
+    if (data.success) showToast('Alpha cleared', 'success');
+    else showToast('Error: '+(data.error||'Failed'),'error');
+  } catch (e) { showToast(e.message,'error'); }
+}
+
+async function startRotation() {
+  const modal = document.getElementById('rotate-modal');
+  const list  = document.getElementById('step-list');
+  modal.style.display = 'flex';
+  document.getElementById('rotate-close').disabled = true;
+
+  const steps = [];
+  for (let i = ACTIVE.length-1; i >= 0; i--) {
+    const from = ACTIVE[i];
+    const to   = ACTIVE[i+1];
+    if (i === 0) steps.push({ name: `Clear Alpha (${from.label||from.name})`, slot: from, action: 'clear' });
+    else if (to) steps.push({ name: `${from.label||from.name} → ${to.label||to.name}`, from, to, action: 'copy' });
+  }
+  steps.reverse();
+
+  list.innerHTML = steps.map((s,i) =>
+    `<li class="step-item" id="step-${i}"><span class="step-icon">⏳</span><span class="step-name">${escHtml(s.name)}</span><span class="step-status" id="ss-${i}">Waiting</span></li>`
+  ).join('');
+
+  for (let i = 0; i < steps.length; i++) {
+    const s   = steps[i];
+    const el  = document.getElementById(`step-${i}`);
+    const ss  = document.getElementById(`ss-${i}`);
+    el.querySelector('.step-icon').textContent = '⟳';
+    ss.textContent = 'Running…'; ss.className = 'step-status running';
+    try {
+      if (s.action === 'copy') {
+        const fromAuth = getSlotAuth(s.from.name);
+        const fromUrl  = fromAuth.url || s.from.url;
+        const fromTok  = fromAuth.token || s.from.token;
+        const toAuth   = getSlotAuth(s.to.name);
+        const toUrl    = toAuth.url || s.to.url;
+        const toTok    = toAuth.token || s.to.token;
+        // Export from source
+        const expRes  = await fetch(`${fromUrl}?action=exportAll&token=${encodeURIComponent(fromTok)}`);
+        const expData = await expRes.json();
+        if (!expData.logs) throw new Error('Export failed: '+(expData.error||'no data'));
+        // Import to target
+        const impRes  = await fetch(toUrl, { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ action:'receiveBackup', token:toTok, payload:expData }) });
+        const impData = await impRes.json();
+        if (!impData.success) throw new Error('Import failed: '+(impData.error||'unknown'));
+      } else {
+        const auth  = getSlotAuth(s.slot.name);
+        const url   = auth.url || s.slot.url;
+        const tok   = auth.token || s.slot.token;
+        const res   = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ action:'clearActive', token:tok }) });
+        const data  = await res.json();
+        if (!data.success) throw new Error(data.error||'Clear failed');
+      }
+      el.querySelector('.step-icon').textContent = '✅';
+      ss.textContent = 'Done'; ss.className = 'step-status ok';
+    } catch (e) {
+      el.querySelector('.step-icon').textContent = '❌';
+      ss.textContent = e.message; ss.className = 'step-status error';
+      showToast('Step failed: '+e.message,'error');
+      break;
+    }
+  }
+  document.getElementById('rotate-close').disabled = false;
+}
+
+function closeRotateModal() {
+  document.getElementById('rotate-modal').style.display = 'none';
+  checkRotationStatus();
+  loadToday();
+}
+
+// ── SETTINGS ────────────────────────────────────────────────────
+function buildSettingsSlots() {
+  const extra = document.getElementById('extra-slot-settings');
+  const names = ['Beta','Gamma','Delta','Epsilon'];
+  ACTIVE.filter(s=>names.includes(s.name)).forEach(slot => {
+    const id  = 'cfg-'+slot.name.toLowerCase();
+    extra.innerHTML += `
+    <div class="settings-block">
+      <h3>🔑 ${slot.label||slot.name} Slot</h3>
+      <div class="set-row"><span class="set-label">Script URL</span>
+        <input id="${id}-url" type="url" placeholder="https://script.google.com/…" style="width:60%;font-size:.8rem">
+      </div>
+      <div class="set-row"><span class="set-label">API Token</span>
+        <input id="${id}-tok" type="password" placeholder="Paste token" style="width:60%;font-size:.8rem">
+      </div>
+      <button class="btn btn-ghost" onclick="saveSlotConfig('${slot.name}','${id}-url','${id}-tok')" style="margin-top:10px;font-size:.8rem">Save ${slot.name}</button>
+    </div>`;
+  });
+}
+
+function loadSavedConfigs() {
+  ACTIVE.forEach(slot => {
+    const saved = getSlotAuth(slot.name);
+    const id    = 'cfg-'+slot.name.toLowerCase();
+    const urlEl = document.getElementById(id+'-url');
+    const tokEl = document.getElementById(id+'-tok');
+    if (urlEl && (saved.url || slot.url)) urlEl.value = saved.url || slot.url;
+    if (tokEl && (saved.token || slot.token)) tokEl.value = saved.token || slot.token;
+  });
+}
+
+function saveSlotConfig(name, urlId, tokId) {
+  const url   = document.getElementById(urlId)?.value?.trim();
+  const token = document.getElementById(tokId)?.value?.trim();
+  if (!url || !token) { showToast('Fill in both fields','error'); return; }
+  localStorage.setItem('fl_slot_auth_'+name, JSON.stringify({ url, token }));
+  showToast(name+' saved','success');
+  if (name==='Alpha') { allLogs=[]; loadToday(); }
+}
+
+function updateSettingsInfo() {
+  document.getElementById('cfg-slots-count').textContent = ACTIVE.length;
+  document.getElementById('cfg-window').textContent      = ACTIVE.length * 15 + ' days';
+}
+
+function updateHeaderRange() {
+  document.getElementById('header-range').textContent =
+    'Up to ' + (ACTIVE.length * 15) + '-day window · ' + ACTIVE.length + ' slot(s)';
+}
+
+// ── UTILS ────────────────────────────────────────────────────────
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function safeJSON(s) { try { return JSON.parse(s); } catch { return null; } }
+function showToast(msg,type='info') {
+  const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),3500);
+}
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
