@@ -8,7 +8,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0f">
-<meta name="screen-orientation" content="landscape">
 <title>Face Logger – Camera</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon.svg">
@@ -20,10 +19,6 @@
   --text:#e0e0f0;--muted:#888;--radius:16px;--font:'Segoe UI',system-ui,sans-serif;
 }
 body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow:visible;user-select:none}
-/* Force landscape on phones */
-@media screen and (orientation:portrait) and (max-width:768px){
-  body{transform:rotate(90deg);transform-origin:center center;width:100vh;height:100vw;position:fixed;top:calc((100vh - 100vw)/2);left:calc((100vw - 100vh)/2);overflow:hidden}
-}
 /* SETUP SCREEN */
 #setup{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
 .setup-card{background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.3);border-radius:24px;padding:36px;max-width:420px;width:100%;backdrop-filter:blur(20px)}
@@ -183,7 +178,7 @@ let deferredInstall = null;
 let cameraStream    = null;   // kept for MediaRecorder
 let mediaRecorder   = null;
 let videoChunks     = [];
-const CLIP_DURATION = 1 * 60 * 1000; // 1-minute clips (keeps each file ~6 MB, safe for Drive upload)
+const CLIP_DURATION = 30 * 1000; // 30-second clips (~1 MB each — avoids Apps Script upload limit)
 
 // cooldown map: name → timestamp
 const cooldowns = new Map();
@@ -224,11 +219,6 @@ async function startApp() {
 
   document.getElementById('loader').style.display      = 'none';
   document.getElementById('camera-view').style.display = 'block';
-
-  // Lock to landscape (works when installed as PWA / fullscreen)
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock('landscape-primary').catch(() => {});
-  }
 
   // Show startup diagnostic toast for 5 seconds
   showStartupStatus();
@@ -619,8 +609,8 @@ function startContinuousRecording() {
 
   try {
     mediaRecorder = mimeType
-      ? new MediaRecorder(cameraStream, { mimeType, videoBitsPerSecond: 800000 })
-      : new MediaRecorder(cameraStream, { videoBitsPerSecond: 800000 }); // 800 kbps HD
+      ? new MediaRecorder(cameraStream, { mimeType, videoBitsPerSecond: 300000 })
+      : new MediaRecorder(cameraStream, { videoBitsPerSecond: 300000 }); // 300 kbps — keeps 30s clips ~1 MB
   } catch (e) {
     console.warn('Could not create MediaRecorder:', e);
     return;
