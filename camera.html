@@ -54,6 +54,7 @@ select option{background:#1a1a2e}
 .feed-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .feed-item.known .feed-dot{background:var(--green)}
 .feed-item.unknown .feed-dot{background:var(--yellow)}
+.feed-thumb{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,.3);flex-shrink:0}
 .feed-name{font-size:.68rem;font-weight:600;max-width:90px;overflow:hidden;text-overflow:ellipsis}
 .feed-time{font-size:.6rem;color:var(--muted)}
 @keyframes slideIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
@@ -464,7 +465,10 @@ function addFeed(entry) {
   div.className = 'feed-item ' + (entry.isKnown ? 'known' : 'unknown');
   const t = new Date(entry.timestamp);
   const timeStr = t.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-  div.innerHTML = `<span class="feed-dot"></span><span class="feed-name">${escHtml(entry.name)}</span><span class="feed-time">${timeStr}</span>`;
+  const thumbHtml = entry.thumb
+    ? `<img class="feed-thumb" src="${entry.thumb}" alt="" loading="lazy">`
+    : `<span class="feed-dot"></span>`;
+  div.innerHTML = `${thumbHtml}<span class="feed-name">${escHtml(entry.name)}</span><span class="feed-time">${timeStr}</span>`;
   list.insertBefore(div, list.firstChild);
 
   // Keep at most 3 visible at once
@@ -652,29 +656,46 @@ async function uploadClip(blob, mimeType) {
     const now      = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `${cameraLoc}_${now}.${ext}`;
 
-    const resp = await fetch(scriptUrl, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        action:      'saveVideo',
-        token:       apiToken,
-        camera:      cameraLoc,
-        filename,
-        videoBase64: base64,
-        mimeType:    mimeType || 'video/webm'
-      })
+    // No Content-Type header → browser treats it as a "simple request",
+    // avoiding the CORS preflight that mobile 4G sometimes drops.
+    // Apps Script reads e.postData.contents regardless of Content-Type.
+    const payload = JSON.stringify({
+      action:      'saveVideo',
+      token:       apiToken,
+      camera:      cameraLoc,
+      filename,
+      videoBase64: base64,
+      mimeType:    mimeType || 'video/webm'
     });
+
+    const ctrl   = new AbortController();
+    const tId    = setTimeout(() => ctrl.abort(), 90000); // 90-second hard timeout
+    let resp;
+    try {
+      resp = await fetch(scriptUrl, { method: 'POST', body: payload, signal: ctrl.signal });
+    } finally {
+      clearTimeout(tId);
+    }
+
+    // Apps Script sometimes returns a redirect (302) followed by a JSON body.
+    // resp.json() handles that transparently.
     const result = await resp.json();
     if (result.success) {
       console.log('Clip saved:', filename, '(' + sizeKB + ' KB)');
-      if (toast) { toast.textContent = '✅ Saved: ' + filename.substring(0, 30) + '…'; setTimeout(() => { toast.style.display = 'none'; }, 3000); }
+      if (toast) { toast.textContent = '✅ Saved ' + sizeKB + ' KB'; setTimeout(() => { toast.style.display = 'none'; }, 3000); }
     } else {
-      console.warn('Clip upload failed:', result.error);
-      if (toast) { toast.textContent = '❌ Upload failed: ' + (result.error || 'unknown'); setTimeout(() => { toast.style.display = 'none'; }, 5000); }
+      const errMsg = result.error || 'unknown';
+      console.warn('Clip upload failed:', errMsg);
+      if (toast) { toast.textContent = '❌ Upload failed: ' + errMsg.substring(0, 40); setTimeout(() => { toast.style.display = 'none'; }, 6000); }
     }
   } catch (e) {
-    console.warn('Video upload error:', e);
-    if (toast) { toast.textContent = '❌ Network error — will retry next clip'; setTimeout(() => { toast.style.display = 'none'; }, 5000); }
+    const isAbort = e.name === 'AbortError';
+    console.warn('Video upload error:', e.name, e.message);
+    if (toast) {
+      toast.textContent = isAbort ? '⏱ Upload timed out — will retry next clip'
+                                  : '❌ Network error — will retry next clip';
+      setTimeout(() => { toast.style.display = 'none'; }, 5000);
+    }
   }
 }
 
