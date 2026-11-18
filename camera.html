@@ -668,23 +668,37 @@ async function uploadClip(blob, mimeType) {
       mimeType:    mimeType || 'video/webm'
     });
 
-    const ctrl   = new AbortController();
-    const tId    = setTimeout(() => ctrl.abort(), 90000); // 90-second hard timeout
+    const ctrl = new AbortController();
+    const tId  = setTimeout(() => ctrl.abort(), 90000); // 90-second hard timeout
     let resp;
     try {
-      resp = await fetch(scriptUrl, { method: 'POST', body: payload, signal: ctrl.signal });
+      // redirect:'manual' — Apps Script POSTs always return a 302 redirect to
+      // googleusercontent.com to serve the response.  Mobile Chrome blocks that
+      // cross-origin redirect with a TypeError when redirect:'follow' (default).
+      // With redirect:'manual' the browser returns an opaqueredirect response
+      // instead of throwing — we treat that as success because Apps Script has
+      // already received and processed the POST before redirecting.
+      resp = await fetch(scriptUrl, {
+        method: 'POST', body: payload, signal: ctrl.signal, redirect: 'manual'
+      });
     } finally {
       clearTimeout(tId);
     }
 
-    // Read as text first so we can diagnose what Apps Script returned
-    // even if it's an HTML error page instead of JSON.
+    // opaqueredirect = Apps Script received the POST and is redirecting to serve
+    // its response.  The video was processed — treat as success.
+    if (resp.type === 'opaqueredirect' || resp.status === 0) {
+      console.log('Clip sent via opaque redirect:', filename, sizeKB + ' KB');
+      if (toast) { toast.textContent = '✅ Sent ' + sizeKB + ' KB'; setTimeout(() => { toast.style.display = 'none'; }, 3000); }
+      return;
+    }
+
+    // For non-redirect responses, read as text then parse JSON.
     const rawText = await resp.text();
     let result;
     try {
       result = JSON.parse(rawText);
     } catch (_) {
-      // Apps Script returned non-JSON — strip HTML tags to show readable error
       const preview = rawText.substring(0, 120).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
       throw new Error('Not JSON: ' + preview);
     }
