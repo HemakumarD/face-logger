@@ -719,9 +719,9 @@ async function uploadClip(blob, mimeType) {
       if (isAbort) {
         msg = '⏱ Timed out — will retry next clip';
       } else if (e.name === 'TypeError') {
-        msg = '📡 No connection — will retry next clip';
+        msg = '📡 ' + (e.message || 'TypeError').substring(0, 55);
       } else {
-        msg = '❌ ' + (e.message || e.name).substring(0, 60);
+        msg = '❌ ' + e.name + ': ' + (e.message || '').substring(0, 50);
       }
       toast.textContent = msg;
       setTimeout(() => { toast.style.display = 'none'; }, 8000);
