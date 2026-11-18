@@ -1,20 +1,17 @@
 {
   "name": "Face Logger – Entry Monitor",
   "short_name": "FaceLogger",
-  "description": "Lift & staircase face detection and entry logging system",
-  "start_url": ".",
-  "scope": ".",
+  "description": "Lift & staircase face detection and entry logging",
+  "start_url": "camera.html",
+  "scope": "/face-logger/",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#0a0a0f",
   "theme_color": "#6c63ff",
   "categories": ["security", "utilities"],
   "icons": [
-    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
-  "screenshots": [],
   "shortcuts": [
     { "name": "Camera View", "url": "camera.html", "description": "Open camera kiosk" },
     { "name": "Dashboard",   "url": "dashboard.html", "description": "View access logs" },
