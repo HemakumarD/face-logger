@@ -515,12 +515,14 @@ async function syncQueue() {
       const records = e.target.result;
       for (const rec of records) {
         try {
+          // No Content-Type header → text/plain (simple request, no CORS preflight)
+          // Apps Script reads e.postData.contents regardless of Content-Type.
           const r = await fetch(rec.url, {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ action: 'log', token: rec.token, entry: rec.entry })
           });
-          if (r.ok) {
+          // Opaque (no-cors) or ok → treat as delivered, remove from queue
+          if (r.ok || r.type === 'opaque' || r.status === 0) {
             const tx2 = idb.transaction(STORE_NAME, 'readwrite');
             tx2.objectStore(STORE_NAME).delete(rec.id);
           }
@@ -672,22 +674,19 @@ async function uploadClip(blob, mimeType) {
     const tId  = setTimeout(() => ctrl.abort(), 90000); // 90-second hard timeout
     let resp;
     try {
-      // redirect:'manual' — Apps Script POSTs always return a 302 redirect to
-      // googleusercontent.com to serve the response.  Mobile Chrome blocks that
-      // cross-origin redirect with a TypeError when redirect:'follow' (default).
-      // With redirect:'manual' the browser returns an opaqueredirect response
-      // instead of throwing — we treat that as success because Apps Script has
-      // already received and processed the POST before redirecting.
+      // mode:'no-cors' — skips the CORS preflight entirely.  The POST is sent
+      // and Apps Script receives it.  The response is opaque (type='opaque',
+      // status=0) — we cannot read the body, but Apps Script has already saved
+      // the video before returning, so opaque = success.
       resp = await fetch(scriptUrl, {
-        method: 'POST', body: payload, signal: ctrl.signal, redirect: 'manual'
+        method: 'POST', body: payload, signal: ctrl.signal, mode: 'no-cors'
       });
     } finally {
       clearTimeout(tId);
     }
 
-    // opaqueredirect = Apps Script received the POST and is redirecting to serve
-    // its response.  The video was processed — treat as success.
-    if (resp.type === 'opaqueredirect' || resp.status === 0) {
+    // opaque = no-cors success; opaqueredirect = redirect mode success; status 0 = either
+    if (resp.type === 'opaque' || resp.type === 'opaqueredirect' || resp.status === 0) {
       console.log('Clip sent via opaque redirect:', filename, sizeKB + ' KB');
       if (toast) { toast.textContent = '✅ Sent ' + sizeKB + ' KB'; setTimeout(() => { toast.style.display = 'none'; }, 3000); }
       return;

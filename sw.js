@@ -4,7 +4,7 @@
  * connection, and satisfies Chrome's PWA install requirement.
  */
 
-const CACHE  = 'fl-v2-shell-3';
+const CACHE  = 'fl-v2-shell-4';
 const SHELL  = [
   '/',
   '/index.html',
