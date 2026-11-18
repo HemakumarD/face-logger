@@ -1,5 +1,5 @@
 {
-  "name": "Face Logger – Entry Monitor",
+  "name": "Face Logger - Entry Monitor",
   "short_name": "FaceLogger",
   "description": "Lift & staircase face detection and entry logging",
   "start_url": "camera.html",
