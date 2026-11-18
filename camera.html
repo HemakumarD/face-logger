@@ -179,7 +179,7 @@ let deferredInstall = null;
 let cameraStream    = null;   // kept for MediaRecorder
 let mediaRecorder   = null;
 let videoChunks     = [];
-const CLIP_DURATION = 30 * 1000; // 30-second clips (~1 MB each — avoids Apps Script upload limit)
+const CLIP_DURATION = 15 * 1000; // 15-second clips (~250 KB each — small and reliable on mobile)
 
 // cooldown map: name → timestamp
 const cooldowns = new Map();
@@ -613,8 +613,8 @@ function startContinuousRecording() {
 
   try {
     mediaRecorder = mimeType
-      ? new MediaRecorder(cameraStream, { mimeType, videoBitsPerSecond: 300000 })
-      : new MediaRecorder(cameraStream, { videoBitsPerSecond: 300000 }); // 300 kbps — keeps 30s clips ~1 MB
+      ? new MediaRecorder(cameraStream, { mimeType, videoBitsPerSecond: 128000 })
+      : new MediaRecorder(cameraStream, { videoBitsPerSecond: 128000 }); // 128 kbps — keeps 15s clips ~240 KB
   } catch (e) {
     console.warn('Could not create MediaRecorder:', e);
     return;
@@ -677,24 +677,40 @@ async function uploadClip(blob, mimeType) {
       clearTimeout(tId);
     }
 
-    // Apps Script sometimes returns a redirect (302) followed by a JSON body.
-    // resp.json() handles that transparently.
-    const result = await resp.json();
+    // Read as text first so we can diagnose what Apps Script returned
+    // even if it's an HTML error page instead of JSON.
+    const rawText = await resp.text();
+    let result;
+    try {
+      result = JSON.parse(rawText);
+    } catch (_) {
+      // Apps Script returned non-JSON — strip HTML tags to show readable error
+      const preview = rawText.substring(0, 120).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      throw new Error('Not JSON: ' + preview);
+    }
+
     if (result.success) {
       console.log('Clip saved:', filename, '(' + sizeKB + ' KB)');
       if (toast) { toast.textContent = '✅ Saved ' + sizeKB + ' KB'; setTimeout(() => { toast.style.display = 'none'; }, 3000); }
     } else {
       const errMsg = result.error || 'unknown';
       console.warn('Clip upload failed:', errMsg);
-      if (toast) { toast.textContent = '❌ Upload failed: ' + errMsg.substring(0, 40); setTimeout(() => { toast.style.display = 'none'; }, 6000); }
+      if (toast) { toast.textContent = '❌ ' + errMsg.substring(0, 50); setTimeout(() => { toast.style.display = 'none'; }, 8000); }
     }
   } catch (e) {
     const isAbort = e.name === 'AbortError';
     console.warn('Video upload error:', e.name, e.message);
     if (toast) {
-      toast.textContent = isAbort ? '⏱ Upload timed out — will retry next clip'
-                                  : '❌ Network error — will retry next clip';
-      setTimeout(() => { toast.style.display = 'none'; }, 5000);
+      let msg;
+      if (isAbort) {
+        msg = '⏱ Timed out — will retry next clip';
+      } else if (e.name === 'TypeError') {
+        msg = '📡 No connection — will retry next clip';
+      } else {
+        msg = '❌ ' + (e.message || e.name).substring(0, 60);
+      }
+      toast.textContent = msg;
+      setTimeout(() => { toast.style.display = 'none'; }, 8000);
     }
   }
 }
